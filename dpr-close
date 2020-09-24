@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -eu
+
+branch="$1"
+
+component_names=(
+  scheduling-rules-processor
+  stream-time-processor
+  vhw-change-processor
+  optimist
+  teletubby
+  toyah
+  walker
+  symbolic-time-resolver
+  availability-calculator
+)
+
+
+add_error() {
+    errors="$errors    $1:"
+}
+errors=""
+
+show_errors() {
+    echo "---------------------------"
+    echo "Attention:"
+    echo "$errors" | tr ":" "\n"
+}
+
+for dir_name in ${component_names[@]}; do
+
+    if [ ! -d "$dir_name" ]; then
+        add_error "$dir_name - couldn't find"
+        continue
+    fi
+    cd "$dir_name"
+
+    gh pr close "$branch" --delete-branch || add_error "$dir_name - couldn't find branch; skipped"
+
+    cd - > /dev/null
+done
+
+if [ ! -z "$errors" ]; then
+    show_errors
+fi

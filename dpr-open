@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+# maybe interlink with dependency
+
+ticket_number="$1"
+dependency="$2"
+new_version="$3"
+
+current_pattern="<$dependency.version>.*</$dependency.version>"
+
+component_names=(
+    scheduling-rules-processor
+    stream-time-processor
+    vhw-change-processor
+    optimist
+    teletubby
+    toyah
+    walker
+    symbolic-time-resolver
+    availability-calculator
+)
+
+add_error() {
+    errors="$errors    $1:"
+}
+errors=""
+
+show_errors() {
+    echo "---------------------------"
+    echo "Attention:"
+    echo "$errors" | tr ":" "\n"
+}
+
+for dir_name in ${component_names[@]}; do
+
+    if [ ! -d "$dir_name" ]; then
+        add_error "$dir_name - couldn't find"
+        continue
+    fi
+    cd "$dir_name"
+
+    if ! grep -q "$current_pattern" pom.xml; then
+        add_error "$dir_name - couldn't find dependency pattern in pom.xml"
+        cd - > /dev/null
+        continue
+    fi
+
+    git stash
+    git checkout master
+    git pull
+    git checkout -B "$ticket_number"
+
+    sed -i '.bak' "s#\($dependency.version>\).*\(</$dependency.version>\)#\1$new_version\2#g" pom.xml \
+        || add_error "$dir_name - could not updtate pom.xml"
+
+    [ -f pom.xml.bak  ] && rm pom.xml.bak
+
+    git add pom.xml
+    git commit -m "$ticket_number - version bump $dependency to $new_version"
+    gh pr create --fill
+    git checkout master
+
+    cd - > /dev/null
+done
+
+if [ ! -z "$errors" ]; then
+    show_errors
+fi
+
+echo "completed"
